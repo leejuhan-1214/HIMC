@@ -1,348 +1,1174 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="질환 유형과 환자 위치를 바탕으로 수도권 주요 병원을 비교하는 공간 복지 대시보드">
-    <title>수도권 주요 병원 공간 복지 대시보드 (질환별 맞춤 평가)</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="NGUMLD 환자 위험도와 질환별 병원 평가, 공간 거리를 결합한 수도권 병원 공간 복지 대시보드">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>수도권 주요 병원 공간 복지 대시보드</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #eef3f7;
+      --panel: rgb(255 255 255 / 96%);
+      --text: #203040;
+      --muted: #667787;
+      --border: #dce5ec;
+      --primary: #1667a8;
+      --primary-soft: #eaf4fb;
+      --danger: #c83f35;
+      --danger-soft: #fff2f0;
+      --success: #18794e;
+      --warning: #9a6700;
+      --shadow: 0 10px 30px rgb(32 48 64 / 16%);
+      --radius: 14px;
+    }
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    * {
+      box-sizing: border-box;
+    }
 
-    <style>
-        body { margin: 0; padding: 0; font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; background: #f4f7f6; color: #333; }
-        #map { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+    }
 
-        .panel {
-            position: absolute;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 12px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-            z-index: 1000;
-            padding: 20px;
-        }
+    body {
+      overflow: hidden;
+      color: var(--text);
+      background: var(--bg);
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+    }
 
-        /* 좌측 랭킹 패널 */
-        .left-panel { top: 20px; left: 20px; width: 340px; bottom: 20px; overflow-y: auto; display: flex; flex-direction: column; }
-        .left-panel h2 { margin: 0 0 15px 0; font-size: 19px; color: #2c3e50; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; }
+    button,
+    input {
+      font: inherit;
+    }
 
-        .hospital-card { background: #fff; border: 1px solid #e0e6ed; border-radius: 8px; padding: 12px; margin-bottom: 10px; transition: all 0.2s; }
-        .hospital-card.rank-1 { border: 2px solid #e74c3c; background: #fdf2f0; }
-        .h-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-        .h-name { font-weight: bold; font-size: 15px; color: #2c3e50; }
-        .h-region { font-size: 11px; color: #7f8c8d; margin-left: 5px; }
-        .h-rank { font-size: 12px; font-weight: bold; color: #fff; background: #95a5a6; padding: 3px 8px; border-radius: 12px; }
-        .rank-1 .h-rank { background: #e74c3c; }
-        .h-score { font-size: 20px; font-weight: bold; color: #2980b9; margin: 5px 0; }
-        .h-stat { font-size: 12px; color: #7f8c8d; }
+    a {
+      color: var(--primary);
+    }
 
-        /* 우측 상단 데이터 & 레이어 컨트롤 */
-        .right-panel { top: 20px; right: 20px; width: 280px; }
-        .right-panel h3 { margin: 0 0 10px 0; font-size: 15px; color: #34495e; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+    #map {
+      position: fixed;
+      z-index: 1;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+    }
 
-        /* 질환 유형 선택 UI */
-        .disease-selector { margin-bottom: 15px; background: #e8f4f8; padding: 10px; border-radius: 8px; }
-        .disease-selector label { display: block; font-size: 13px; font-weight: bold; color: #2c3e50; margin-bottom: 8px; cursor: pointer; }
-        .disease-selector input[type="radio"] { margin-right: 8px; accent-color: #3498db; }
+    .panel {
+      position: absolute;
+      z-index: 1000;
+      padding: 18px;
+      overflow: hidden;
+      border: 1px solid rgb(255 255 255 / 70%);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
 
-        .data-upload { margin-bottom: 15px; background: #eef2f5; padding: 10px; border-radius: 8px; font-size: 13px; }
-        .data-upload input { margin-top: 5px; font-size: 12px; width: 100%; }
-        .checkbox-group label { display: block; margin-bottom: 8px; font-size: 14px; cursor: pointer; }
+    .left-panel {
+      top: 16px;
+      bottom: 16px;
+      left: 16px;
+      display: flex;
+      width: 360px;
+      flex-direction: column;
+    }
 
-        /* 하단 슬라이더 패널 */
-        .bottom-panel { bottom: 30px; left: 50%; transform: translateX(-50%); width: 600px; }
-        .slider-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 2px solid #ecf0f1; padding-bottom: 8px; }
-        .slider-header span { font-weight: bold; color: #2c3e50; font-size: 16px; }
-        #severityVal { color: #e74c3c; font-size: 22px; font-weight: bold; }
+    .right-panel {
+      top: 16px;
+      right: 16px;
+      width: 320px;
+      max-height: calc(100vh - 32px);
+      overflow-y: auto;
+    }
 
-        .slider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px 25px; }
-        .slider-item { display: flex; flex-direction: column; }
-        .slider-item label { font-size: 13px; font-weight: bold; color: #34495e; margin-bottom: 5px; display: flex; justify-content: space-between; }
-        .slider-item label span { color: #3498db; }
-        input[type=range] { width: 100%; cursor: pointer; accent-color: #3498db; }
-    </style>
+    .bottom-panel {
+      bottom: 16px;
+      left: 50%;
+      width: min(700px, calc(100vw - 760px));
+      min-width: 520px;
+      transform: translateX(-50%);
+    }
+
+    .panel-header {
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .title-row,
+    .section-title,
+    .severity-header,
+    .score-row,
+    .action-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 19px;
+      line-height: 1.35;
+    }
+
+    h2,
+    h3,
+    legend {
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .subtitle,
+    .text-small {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .subtitle {
+      margin-top: 6px;
+    }
+
+    .badge {
+      display: inline-flex;
+      min-height: 24px;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: var(--primary);
+      background: var(--primary-soft);
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .badge.danger {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .summary-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .summary-item {
+      padding: 9px;
+      border-radius: 9px;
+      background: #f4f8fb;
+    }
+
+    .summary-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-top: 3px;
+      color: var(--primary);
+      font-size: 15px;
+    }
+
+    #rankingList {
+      min-height: 0;
+      flex: 1;
+      margin-top: 12px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+    }
+
+    .hospital-card {
+      padding: 12px;
+      margin-bottom: 9px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+    }
+
+    .hospital-card.rank-1 {
+      border: 2px solid var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .hospital-name {
+      min-width: 0;
+      overflow: hidden;
+      font-size: 14px;
+      font-weight: 700;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .hospital-region {
+      margin-left: 5px;
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 400;
+    }
+
+    .rank-badge {
+      padding: 3px 8px;
+      border-radius: 999px;
+      color: #fff;
+      background: #84939d;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .rank-1 .rank-badge {
+      background: var(--danger);
+    }
+
+    .final-score {
+      margin: 8px 0;
+      color: var(--primary);
+      font-size: 21px;
+      font-weight: 800;
+    }
+
+    .score-breakdown {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+    }
+
+    .score-breakdown div {
+      padding: 6px;
+      border-radius: 7px;
+      background: rgb(255 255 255 / 78%);
+      text-align: center;
+    }
+
+    .score-breakdown span {
+      display: block;
+      color: var(--muted);
+      font-size: 9px;
+    }
+
+    .score-breakdown strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+    }
+
+    details {
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    summary {
+      color: var(--primary);
+      cursor: pointer;
+    }
+
+    .map-focus-button,
+    .button {
+      min-height: 30px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      background: #fff;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .map-focus-button {
+      width: 100%;
+      margin-top: 8px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px 9px;
+      text-decoration: none;
+    }
+
+    .button.primary {
+      border-color: var(--primary);
+      color: #fff;
+      background: var(--primary);
+    }
+
+    .method-note {
+      padding-top: 10px;
+      margin-top: 5px;
+      border-top: 1px solid var(--border);
+    }
+
+    .control-section,
+    fieldset {
+      padding: 0 0 13px;
+      margin: 0 0 13px;
+      border: 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .right-panel > :last-child {
+      padding-bottom: 0;
+      margin-bottom: 0;
+      border-bottom: 0;
+    }
+
+    .safety-notice {
+      padding: 10px;
+      border: 1px solid #f3c7c2;
+      border-radius: 9px;
+      color: #7e2b25;
+      background: var(--danger-soft);
+      font-size: 11px;
+      line-height: 1.5;
+    }
+
+    .choice-list {
+      display: grid;
+      gap: 7px;
+      margin-top: 9px;
+    }
+
+    .choice-list label {
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      font-size: 12px;
+      line-height: 1.4;
+      cursor: pointer;
+    }
+
+    input[type="radio"],
+    input[type="checkbox"] {
+      margin: 2px 0 0;
+      accent-color: var(--primary);
+    }
+
+    input[type="file"] {
+      width: 100%;
+      margin-top: 8px;
+      font-size: 11px;
+    }
+
+    .data-box,
+    .location-box {
+      padding: 9px;
+      margin-top: 8px;
+      border-radius: 9px;
+      background: #f4f8fb;
+    }
+
+    .data-box strong,
+    .location-box strong {
+      display: block;
+      font-size: 11px;
+    }
+
+    .data-box p,
+    .location-box p {
+      margin-top: 4px;
+    }
+
+    .upload-status {
+      min-height: 18px;
+      margin-top: 7px;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .upload-status.success {
+      color: var(--success);
+    }
+
+    .upload-status.warning {
+      color: var(--warning);
+    }
+
+    .upload-status.error {
+      color: var(--danger);
+    }
+
+    #importIssues {
+      max-height: 100px;
+      padding-left: 18px;
+      overflow-y: auto;
+      color: var(--danger);
+    }
+
+    .severity-header {
+      padding-bottom: 9px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .severity-value {
+      color: var(--danger);
+      font-size: 23px;
+      font-weight: 800;
+    }
+
+    .formula {
+      margin-top: 7px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 10px;
+      line-height: 1.45;
+    }
+
+    .severity-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px 18px;
+      margin-top: 13px;
+    }
+
+    .slider-item label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: #34495e;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .slider-item output {
+      color: var(--primary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      margin: 7px 0 0;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .app-error {
+      position: fixed;
+      z-index: 2000;
+      top: 12px;
+      left: 50%;
+      display: none;
+      width: min(620px, calc(100vw - 24px));
+      padding: 12px;
+      border: 1px solid #efb9b3;
+      border-radius: 10px;
+      color: #7e2b25;
+      background: #fff1ef;
+      box-shadow: var(--shadow);
+      transform: translateX(-50%);
+      font-size: 12px;
+    }
+
+    .map-legend {
+      padding: 7px 9px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      background: rgb(255 255 255 / 92%);
+      font-size: 10px;
+      line-height: 1.5;
+    }
+
+    .hospital-dot {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 30%), 0 2px 5px rgb(0 0 0 / 30%);
+    }
+
+    .hospital-dot.is-best {
+      width: 18px;
+      height: 18px;
+      border: 3px solid #fff;
+      background: var(--danger) !important;
+      box-shadow: 0 0 0 3px rgb(200 63 53 / 30%), 0 3px 8px rgb(0 0 0 / 35%);
+    }
+
+    .patient-pin {
+      font-size: 25px;
+      filter: drop-shadow(0 2px 2px rgb(0 0 0 / 45%));
+    }
+
+    .hospital-tooltip {
+      padding: 3px 6px;
+      border: 0;
+      border-radius: 6px;
+      color: var(--text);
+      background: rgb(255 255 255 / 92%);
+      box-shadow: 0 3px 10px rgb(0 0 0 / 16%);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 1270px) {
+      body {
+        height: auto;
+        min-height: 100%;
+        overflow: auto;
+      }
+
+      #map {
+        position: relative;
+        width: 100%;
+        height: 55vh;
+        min-height: 420px;
+      }
+
+      .panel {
+        position: relative;
+        inset: auto;
+        width: auto;
+        min-width: 0;
+        max-height: none;
+        margin: 12px;
+        transform: none;
+      }
+
+      .left-panel {
+        display: block;
+      }
+
+      #rankingList {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 9px;
+        overflow: visible;
+      }
+
+      .hospital-card {
+        margin: 0;
+      }
+    }
+
+    @media (max-width: 700px) {
+      #map {
+        min-height: 360px;
+      }
+
+      #rankingList,
+      .severity-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-strip {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        padding: 14px;
+        margin: 9px;
+      }
+    }
+  </style>
 </head>
 <body>
+  <div id="map" role="application" aria-label="수도권 병원과 환자 위치 지도"></div>
+  <div id="appError" class="app-error" role="alert"></div>
 
-    <div id="map"></div>
+  <aside class="panel left-panel" aria-labelledby="rankingTitle">
+    <header class="panel-header">
+      <div class="title-row">
+        <h1 id="rankingTitle">수도권 병원 공간 복지 분석</h1>
+        <span class="badge danger">연구·시연용</span>
+      </div>
+      <p class="subtitle">질환별 기본점수, NGUMLD 위험도, 직선거리를 결합한 Top 5입니다.</p>
+      <div class="summary-strip" aria-live="polite">
+        <div class="summary-item">
+          <span>선택 질환</span>
+          <strong id="selectedDiseaseSummary">급성</strong>
+        </div>
+        <div class="summary-item">
+          <span>환자 위험도 R</span>
+          <strong id="severitySummary">50.0</strong>
+        </div>
+      </div>
+    </header>
 
-    <div class="panel left-panel">
-        <h2>🏥 질환 맞춤 최적 병원 추천</h2>
-        <div id="rankingList"></div>
+    <div id="rankingList" aria-live="polite"></div>
+
+    <p class="method-note text-small">
+      최종점수 = 질환별 기본점수 − 거리 페널티. 거리는 도로 이동시간이 아닌 지표면 직선거리입니다.
+    </p>
+  </aside>
+
+  <aside class="panel right-panel" aria-label="분석 설정">
+    <section class="control-section">
+      <div class="safety-notice">
+        <strong>의료 안전 안내</strong><br>
+        본 화면은 연구·시연용이며 의료 조언이나 실제 이송 결정을 대신하지 않습니다. 응급 상황에서는 119와 의료진의 안내를 우선하세요.
+      </div>
+    </section>
+
+    <fieldset>
+      <legend>환자 질환 유형</legend>
+      <div class="choice-list">
+        <label><input type="radio" name="diseaseType" value="급성" checked> 급성 질환</label>
+        <label><input type="radio" name="diseaseType" value="만성"> 만성 질환</label>
+        <label><input type="radio" name="diseaseType" value="암"> 중증 암 질환</label>
+      </div>
+    </fieldset>
+
+    <section class="control-section" aria-labelledby="locationTitle">
+      <div class="section-title">
+        <h2 id="locationTitle">환자 위치</h2>
+        <button id="useMyLocation" class="button" type="button">현재 위치 사용</button>
+      </div>
+      <div class="location-box">
+        <strong id="patientCoordinates">37.5300, 126.9800</strong>
+        <p class="text-small">지도를 클릭해 위치를 변경할 수 있습니다.</p>
+      </div>
+      <p id="locationStatus" class="upload-status" aria-live="polite"></p>
+    </section>
+
+    <section class="control-section" aria-labelledby="dataTitle">
+      <div class="section-title">
+        <h2 id="dataTitle">병원 평가 데이터</h2>
+        <span id="dataSourceBadge" class="badge">시연용 기본값</span>
+      </div>
+      <div class="data-box">
+        <strong id="dataSourceText">내장 데이터 · 기준 2026-08-28</strong>
+        <p class="text-small">공식 평가가 아닙니다. 검증된 CSV로 교체해 사용하세요.</p>
+        <p class="text-small">
+          참고: <a href="https://www.hira.or.kr/ra/eval/getDiagEvlList.do?pgmid=HIRAA030004000000" target="_blank" rel="noopener noreferrer">HIRA 병원평가정보</a>
+          · <a href="https://www.data.go.kr/data/15001698/openapi.do" target="_blank" rel="noopener noreferrer">병원정보 API</a>
+        </p>
+      </div>
+      <label class="text-small" for="csvFileInput">CSV 업로드: 병원ID 또는 병원명, 급성, 만성, 암</label>
+      <input type="file" id="csvFileInput" accept=".csv,text/csv">
+      <div class="action-row">
+        <a class="button" href="sample-hospital-scores.csv" download>샘플 CSV 다운로드</a>
+      </div>
+      <p id="uploadStatus" class="upload-status" aria-live="polite">현재 시연용 기본 점수를 사용 중입니다.</p>
+      <details id="importReport" hidden>
+        <summary>가져오기 상세 결과</summary>
+        <ul id="importIssues"></ul>
+      </details>
+    </section>
+
+    <fieldset>
+      <legend>지도 레이어</legend>
+      <div class="choice-list">
+        <label><input type="checkbox" id="toggleVoronoi" checked> 최근접 병원권(기하학적 보로노이)</label>
+        <label><input type="checkbox" id="toggleHospitals" checked> 병원 위치</label>
+        <label><input type="checkbox" id="toggleRoute" checked> 1위 추천 연결선</label>
+      </div>
+      <p class="text-small" style="margin-top: 8px;">
+        보로노이는 거리만 반영한 최근접 구역이며 질환·위험도를 반영한 추천 순위와 다를 수 있습니다.
+      </p>
+    </fieldset>
+  </aside>
+
+  <section class="panel bottom-panel" aria-labelledby="severityTitle">
+    <div class="severity-header">
+      <div>
+        <h2 id="severityTitle">NGUMLD 환자 위험도</h2>
+        <p class="formula">R = 0.15N + 0.05G + 0.25U + 0.25M + 0.15L + 0.15D</p>
+      </div>
+      <div>
+        <span id="severityValue" class="severity-value" aria-live="polite">50.0점</span>
+        <button id="resetSeverity" class="button" type="button">초기화</button>
+      </div>
     </div>
 
-    <div class="panel right-panel">
-        <h3>📋 환자 질환 유형 선택</h3>
-        <div class="disease-selector">
-            <label><input type="radio" name="diseaseType" value="급성" checked> ⚡ 급성 질환 (심뇌혈관, 중증외상 등)</label>
-            <label><input type="radio" name="diseaseType" value="만성"> 🩸 만성 질환 (당뇨, 고혈압, 신장 등)</label>
-            <label><input type="radio" name="diseaseType" value="암"> 🎗️ 중증 암 질환 (수술 및 항암)</label>
-        </div>
-
-        <h3>📂 상대평가 데이터 연동</h3>
-        <div class="data-upload">
-            <label><b>'병원별 평가.csv'</b> 업로드</label>
-            <input type="file" id="csvFileInput" accept=".csv">
-            <div id="uploadStatus" style="color: #e74c3c; margin-top: 5px; font-weight: bold; font-size: 11px;">현재 기본 가상 점수 사용 중</div>
-        </div>
-
-        <h3>🗺️ 지도 레이어 설정</h3>
-        <div class="checkbox-group">
-            <label><input type="checkbox" id="toggleVoronoi" checked> 진료 세력권 (보로노이)</label>
-            <label><input type="checkbox" id="toggleHospitals" checked> 병원 위치</label>
-        </div>
+    <div class="severity-grid">
+      <div class="slider-item">
+        <label for="sliderN">N · 나이 위험도 (15%) <output id="valueN">50</output></label>
+        <input type="range" id="sliderN" min="0" max="100" value="50">
+      </div>
+      <div class="slider-item">
+        <label for="sliderG">G · 성별·질환 연관도 (5%) <output id="valueG">50</output></label>
+        <input type="range" id="sliderG" min="0" max="100" value="50">
+      </div>
+      <div class="slider-item">
+        <label for="sliderU">U · 긴급도 (25%) <output id="valueU">50</output></label>
+        <input type="range" id="sliderU" min="0" max="100" value="50">
+      </div>
+      <div class="slider-item">
+        <label for="sliderM">M · 동반질환 (25%) <output id="valueM">50</output></label>
+        <input type="range" id="sliderM" min="0" max="100" value="50">
+      </div>
+      <div class="slider-item">
+        <label for="sliderL">L · 입원기간 부담 (15%) <output id="valueL">50</output></label>
+        <input type="range" id="sliderL" min="0" max="100" value="50">
+      </div>
+      <div class="slider-item">
+        <label for="sliderD">D · 사회적 결핍 (15%) <output id="valueD">50</output></label>
+        <input type="range" id="sliderD" min="0" max="100" value="50">
+      </div>
     </div>
+  </section>
 
-    <div class="panel bottom-panel">
-        <div class="slider-header">
-            <span>🚨 종합 환자 중증도</span>
-            <span id="severityVal">50.0 점</span>
-        </div>
-        <div class="slider-grid">
-            <div class="slider-item">
-                <label>활력 징후 불안정성 (40%) <span id="valV">50</span></label>
-                <input type="range" id="sliderV" min="0" max="100" step="1" value="50">
-            </div>
-            <div class="slider-item">
-                <label>골든타임 질환 여부 (35%) <span id="valG">50</span></label>
-                <input type="range" id="sliderG" min="0" max="100" step="1" value="50">
-            </div>
-            <div class="slider-item">
-                <label>통증 척도 강도 (15%) <span id="valP">50</span></label>
-                <input type="range" id="sliderP" min="0" max="100" step="1" value="50">
-            </div>
-            <div class="slider-item">
-                <label>환자 취약성 (기저질환) (10%) <span id="valW">50</span></label>
-                <input type="range" id="sliderW" min="0" max="100" step="1" value="50">
-            </div>
-        </div>
-    </div>
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin="anonymous"
+  ></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+    (() => {
+      'use strict';
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+      const appError = document.getElementById('appError');
+      const missingDependencies = [
+        ['Leaflet', window.L],
+        ['Turf.js', window.turf],
+        ['PapaParse', window.Papa]
+      ].filter(([, dependency]) => !dependency).map(([name]) => name);
 
-    <script>
-        // 1. 기본 데이터 세팅 (질환별 초기 점수 할당)
-        let hospitals = [
-            { id: 1, name: '서울대학교병원', region: '서울', lat: 37.579, lon: 126.999, scores: { '급성': 98, '만성': 95, '암': 99 } },
-            { id: 2, name: '연세대학교 세브란스병원', region: '서울', lat: 37.562, lon: 126.940, scores: { '급성': 96, '만성': 96, '암': 97 } },
-            { id: 3, name: '삼성서울병원', region: '서울', lat: 37.488, lon: 127.085, scores: { '급성': 95, '만성': 94, '암': 98 } },
-            { id: 4, name: '서울아산병원', region: '서울', lat: 37.526, lon: 127.108, scores: { '급성': 97, '만성': 96, '암': 98 } },
-            { id: 5, name: '서울성모병원', region: '서울', lat: 37.501, lon: 127.004, scores: { '급성': 94, '만성': 95, '암': 95 } },
-            { id: 6, name: '고려대학교 안암병원', region: '서울', lat: 37.587, lon: 127.026, scores: { '급성': 92, '만성': 90, '암': 91 } },
-            { id: 7, name: '경희대학교병원', region: '서울', lat: 37.594, lon: 127.051, scores: { '급성': 89, '만성': 91, '암': 88 } },
-            { id: 8, name: '한양대학교병원', region: '서울', lat: 37.559, lon: 127.045, scores: { '급성': 89, '만성': 88, '암': 89 } },
-            { id: 9, name: '이대서울병원', region: '서울', lat: 37.557, lon: 126.836, scores: { '급성': 87, '만성': 89, '암': 86 } },
-            { id: 10, name: '이화여자대학교 목동병원', region: '서울', lat: 37.537, lon: 126.886, scores: { '급성': 86, '만성': 87, '암': 88 } },
-            { id: 11, name: '중앙대학교병원', region: '서울', lat: 37.506, lon: 126.960, scores: { '급성': 89, '만성': 88, '암': 87 } },
-            { id: 12, name: '건국대학교병원', region: '서울', lat: 37.540, lon: 127.071, scores: { '급성': 88, '만성': 89, '암': 87 } },
-            { id: 13, name: '강동경희대학교병원', region: '서울', lat: 37.553, lon: 127.157, scores: { '급성': 86, '만성': 88, '암': 85 } },
-            { id: 14, name: '분당서울대학교병원', region: '경기 성남', lat: 37.352, lon: 127.123, scores: { '급성': 95, '만성': 94, '암': 96 } },
-            { id: 15, name: '아주대학교병원', region: '경기 수원', lat: 37.279, lon: 127.047, scores: { '급성': 94, '만성': 90, '암': 91 } },
-            { id: 16, name: '차의과학대학교 분당차병원', region: '경기 성남', lat: 37.410, lon: 127.125, scores: { '급성': 86, '만성': 87, '암': 86 } },
-            { id: 17, name: '한림대학교성심병원', region: '경기 안양', lat: 37.391, lon: 126.961, scores: { '급성': 88, '만성': 86, '암': 85 } },
-            { id: 18, name: '순천향대학교 부천병원', region: '경기 부천', lat: 37.502, lon: 126.761, scores: { '급성': 87, '만성': 87, '암': 86 } },
-            { id: 19, name: '명지병원', region: '경기 고양', lat: 37.643, lon: 126.833, scores: { '급성': 85, '만성': 86, '암': 84 } },
-            { id: 20, name: '동국대학교일산병원', region: '경기 고양', lat: 37.676, lon: 126.806, scores: { '급성': 86, '만성': 86, '암': 85 } },
-            { id: 21, name: '국민건강보험 일산병원', region: '경기 고양', lat: 37.644, lon: 126.793, scores: { '급성': 87, '만성': 88, '암': 87 } },
-            { id: 22, name: '가톨릭대학교 성빈센트병원', region: '경기 수원', lat: 37.277, lon: 127.027, scores: { '급성': 86, '만성': 85, '암': 85 } },
-            { id: 23, name: '용인세브란스병원', region: '경기 용인', lat: 37.276, lon: 127.153, scores: { '급성': 88, '만성': 87, '암': 88 } },
-            { id: 24, name: '인하대학교병원', region: '인천', lat: 37.447, lon: 126.632, scores: { '급성': 89, '만성': 87, '암': 88 } },
-            { id: 25, name: '가천대 길병원', region: '인천', lat: 37.452, lon: 126.709, scores: { '급성': 91, '만성': 88, '암': 89 } },
-            { id: 26, name: '가톨릭대학교 인천성모병원', region: '인천', lat: 37.485, lon: 126.724, scores: { '급성': 87, '만성': 87, '암': 86 } }
-        ];
+      if (missingDependencies.length > 0) {
+        appError.textContent = `필수 라이브러리를 불러오지 못했습니다: ${missingDependencies.join(', ')}. 인터넷 연결 후 새로고침해 주세요.`;
+        appError.style.display = 'block';
+        return;
+      }
 
-        const colors = ['#a1c9f4', '#ffb482', '#8de5a1', '#ff9f9b', '#d0bbff', '#debb9b', '#fab0e4', '#cfcfcf', '#fffea3', '#b9f2f0', '#c2e0c6', '#eac6ff'];
+      const MODEL = Object.freeze({
+        weights: Object.freeze({ N: 0.15, G: 0.05, U: 0.25, M: 0.25, L: 0.15, D: 0.15 }),
+        diseases: Object.freeze(['급성', '만성', '암']),
+        dataVersion: 'demo-2026-08-28'
+      });
 
-        const map = L.map('map', { zoomControl: false }).setView([37.50, 126.98], 10);
-        L.control.zoom({ position: 'topright' }).addTo(map);
+      const DEFAULT_HOSPITALS = [
+        { id: 'H001', name: '서울대학교병원', region: '서울', lat: 37.579, lon: 126.999, scores: { '급성': 98, '만성': 95, '암': 99 } },
+        { id: 'H002', name: '연세대학교 세브란스병원', region: '서울', lat: 37.562, lon: 126.940, scores: { '급성': 96, '만성': 96, '암': 97 } },
+        { id: 'H003', name: '삼성서울병원', region: '서울', lat: 37.488, lon: 127.085, scores: { '급성': 95, '만성': 94, '암': 98 } },
+        { id: 'H004', name: '서울아산병원', region: '서울', lat: 37.526, lon: 127.108, scores: { '급성': 97, '만성': 96, '암': 98 } },
+        { id: 'H005', name: '서울성모병원', region: '서울', lat: 37.501, lon: 127.004, scores: { '급성': 94, '만성': 95, '암': 95 } },
+        { id: 'H006', name: '고려대학교 안암병원', region: '서울', lat: 37.587, lon: 127.026, scores: { '급성': 92, '만성': 90, '암': 91 } },
+        { id: 'H007', name: '경희대학교병원', region: '서울', lat: 37.594, lon: 127.051, scores: { '급성': 89, '만성': 91, '암': 88 } },
+        { id: 'H008', name: '한양대학교병원', region: '서울', lat: 37.559, lon: 127.045, scores: { '급성': 89, '만성': 88, '암': 89 } },
+        { id: 'H009', name: '이대서울병원', region: '서울', lat: 37.557, lon: 126.836, scores: { '급성': 87, '만성': 89, '암': 86 } },
+        { id: 'H010', name: '이화여자대학교 목동병원', region: '서울', lat: 37.537, lon: 126.886, scores: { '급성': 86, '만성': 87, '암': 88 } },
+        { id: 'H011', name: '중앙대학교병원', region: '서울', lat: 37.506, lon: 126.960, scores: { '급성': 89, '만성': 88, '암': 87 } },
+        { id: 'H012', name: '건국대학교병원', region: '서울', lat: 37.540, lon: 127.071, scores: { '급성': 88, '만성': 89, '암': 87 } },
+        { id: 'H013', name: '강동경희대학교병원', region: '서울', lat: 37.553, lon: 127.157, scores: { '급성': 86, '만성': 88, '암': 85 } },
+        { id: 'H014', name: '분당서울대학교병원', region: '경기 성남', lat: 37.352, lon: 127.123, scores: { '급성': 95, '만성': 94, '암': 96 } },
+        { id: 'H015', name: '아주대학교병원', region: '경기 수원', lat: 37.279, lon: 127.047, scores: { '급성': 94, '만성': 90, '암': 91 } },
+        { id: 'H016', name: '차의과학대학교 분당차병원', region: '경기 성남', lat: 37.410, lon: 127.125, scores: { '급성': 86, '만성': 87, '암': 86 } },
+        { id: 'H017', name: '한림대학교성심병원', region: '경기 안양', lat: 37.391, lon: 126.961, scores: { '급성': 88, '만성': 86, '암': 85 } },
+        { id: 'H018', name: '순천향대학교 부천병원', region: '경기 부천', lat: 37.502, lon: 126.761, scores: { '급성': 87, '만성': 87, '암': 86 } },
+        { id: 'H019', name: '명지병원', region: '경기 고양', lat: 37.643, lon: 126.833, scores: { '급성': 85, '만성': 86, '암': 84 } },
+        { id: 'H020', name: '동국대학교일산병원', region: '경기 고양', lat: 37.676, lon: 126.806, scores: { '급성': 86, '만성': 86, '암': 85 } },
+        { id: 'H021', name: '국민건강보험 일산병원', region: '경기 고양', lat: 37.644, lon: 126.793, scores: { '급성': 87, '만성': 88, '암': 87 } },
+        { id: 'H022', name: '가톨릭대학교 성빈센트병원', region: '경기 수원', lat: 37.277, lon: 127.027, scores: { '급성': 86, '만성': 85, '암': 85 } },
+        { id: 'H023', name: '용인세브란스병원', region: '경기 용인', lat: 37.276, lon: 127.153, scores: { '급성': 88, '만성': 87, '암': 88 } },
+        { id: 'H024', name: '인하대학교병원', region: '인천', lat: 37.447, lon: 126.632, scores: { '급성': 89, '만성': 87, '암': 88 } },
+        { id: 'H025', name: '가천대 길병원', region: '인천', lat: 37.452, lon: 126.709, scores: { '급성': 91, '만성': 88, '암': 89 } },
+        { id: 'H026', name: '가톨릭대학교 인천성모병원', region: '인천', lat: 37.485, lon: 126.724, scores: { '급성': 87, '만성': 87, '암': 86 } }
+      ];
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap contributors'
+      const palette = [
+        '#2266aa', '#c5483d', '#2b8a6e', '#8a5db2', '#d27720', '#447b33',
+        '#b64e83', '#476f8f', '#8e6b23', '#4f8e99', '#6f62a8', '#a04d4d'
+      ];
+
+      let hospitals = DEFAULT_HOSPITALS.map(hospital => ({
+        ...hospital,
+        scores: { ...hospital.scores }
+      }));
+      let patientPos = { lat: 37.53, lon: 126.98 };
+      let latestResults = [];
+
+      const map = L.map('map', { zoomControl: false }).setView([37.50, 126.98], 10);
+      L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+      const tileLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      }).addTo(map);
+
+      let tileErrorShown = false;
+      tileLayer.on('tileerror', () => {
+        if (tileErrorShown) return;
+        tileErrorShown = true;
+        appError.textContent = '일부 지도 타일을 불러오지 못했습니다. 네트워크 상태를 확인해 주세요.';
+        appError.style.display = 'block';
+      });
+
+      const voronoiLayer = L.layerGroup().addTo(map);
+      const hospitalLayer = L.layerGroup().addTo(map);
+      const routeLayer = L.layerGroup().addTo(map);
+      let patientMarker = null;
+
+      const mapLegend = L.control({ position: 'bottomright' });
+      mapLegend.onAdd = () => {
+        const container = L.DomUtil.create('div', 'map-legend');
+        container.innerHTML = '보로노이: 최근접 병원권<br>붉은 점선: 동적 점수 1위';
+        return container;
+      };
+      mapLegend.addTo(map);
+
+      function hospitalColor(hospital) {
+        const number = Number.parseInt(hospital.id.replace(/\D/g, ''), 10) || 1;
+        return palette[(number - 1) % palette.length];
+      }
+
+      function normalizeHospitalName(value) {
+        return String(value || '')
+          .normalize('NFKC')
+          .replace(/[\s()\[\]·.,-]/g, '')
+          .toLowerCase();
+      }
+
+      function escapeHtml(value) {
+        const replacements = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+        return String(value).replace(/[&<>"']/g, character => replacements[character]);
+      }
+
+      function getSelectedDiseaseType() {
+        return document.querySelector('input[name="diseaseType"]:checked').value;
+      }
+
+      function getSeverityInputs() {
+        return Object.fromEntries(
+          Object.keys(MODEL.weights).map(key => [key, Number(document.getElementById(`slider${key}`).value)])
+        );
+      }
+
+      function computeSeverity(values) {
+        return Object.entries(MODEL.weights).reduce(
+          (total, [key, weight]) => total + values[key] * weight,
+          0
+        );
+      }
+
+      function computeHospitalResults(diseaseType, severity) {
+        const patientPoint = turf.point([patientPos.lon, patientPos.lat]);
+
+        return hospitals.map(hospital => {
+          const hospitalPoint = turf.point([hospital.lon, hospital.lat]);
+          const distance = turf.distance(patientPoint, hospitalPoint, { units: 'kilometers' });
+          const baseScore = hospital.scores[diseaseType];
+          const penalty = distance * ((100 - severity) / 50);
+          const score = baseScore - penalty;
+
+          return { ...hospital, distance, baseScore, penalty, score };
+        }).sort((a, b) => b.score - a.score || a.distance - b.distance || a.name.localeCompare(b.name, 'ko'));
+      }
+
+      function renderRanking(results, diseaseType, severity) {
+        const rankingList = document.getElementById('rankingList');
+        rankingList.innerHTML = results.slice(0, 5).map((hospital, index) => {
+          const rank = index + 1;
+          return `
+            <article class="hospital-card${rank === 1 ? ' rank-1' : ''}">
+              <div class="score-row">
+                <div class="hospital-name" title="${escapeHtml(hospital.name)}">
+                  ${escapeHtml(hospital.name)}<span class="hospital-region">${escapeHtml(hospital.region)}</span>
+                </div>
+                <span class="rank-badge">${rank}위</span>
+              </div>
+              <div class="final-score">${hospital.score.toFixed(1)}점</div>
+              <div class="score-breakdown">
+                <div><span>${escapeHtml(diseaseType)} 기본점수</span><strong>${hospital.baseScore.toFixed(1)}</strong></div>
+                <div><span>직선거리</span><strong>${hospital.distance.toFixed(1)}km</strong></div>
+                <div><span>거리 페널티</span><strong>−${hospital.penalty.toFixed(1)}</strong></div>
+              </div>
+              <details>
+                <summary>계산 상세</summary>
+                <p>R ${severity.toFixed(1)} · ${hospital.baseScore.toFixed(1)} − ${hospital.distance.toFixed(2)} × ((100 − ${severity.toFixed(1)}) / 50) = ${hospital.score.toFixed(2)}</p>
+              </details>
+              <button class="map-focus-button" type="button" data-hospital-id="${hospital.id}">지도에서 보기</button>
+            </article>
+          `;
+        }).join('');
+      }
+
+      function renderMap(results) {
+        const bestHospital = results[0];
+        hospitalLayer.clearLayers();
+
+        hospitals.forEach(hospital => {
+          const isBest = hospital.id === bestHospital.id;
+          const icon = L.divIcon({
+            html: `<div class="hospital-dot${isBest ? ' is-best' : ''}" style="background:${hospitalColor(hospital)}"></div>`,
+            className: '',
+            iconSize: isBest ? [18, 18] : [14, 14],
+            iconAnchor: isBest ? [9, 9] : [7, 7]
+          });
+
+          L.marker([hospital.lat, hospital.lon], { icon })
+            .bindTooltip(hospital.name, {
+              permanent: isBest,
+              direction: 'right',
+              className: 'hospital-tooltip'
+            })
+            .addTo(hospitalLayer);
+        });
+
+        if (patientMarker) patientMarker.remove();
+        const patientIcon = L.divIcon({
+          html: '<div class="patient-pin" aria-label="환자 위치">★</div>',
+          className: '',
+          iconSize: [28, 28],
+          iconAnchor: [14, 14]
+        });
+        patientMarker = L.marker([patientPos.lat, patientPos.lon], {
+          icon: patientIcon,
+          zIndexOffset: 1000
         }).addTo(map);
 
-        const voronoiLayer = L.layerGroup().addTo(map);
-        const hospitalLayer = L.layerGroup().addTo(map);
-        let patientMarker = null;
-        let bestRouteLine = null;
+        routeLayer.clearLayers();
+        L.polyline(
+          [[patientPos.lat, patientPos.lon], [bestHospital.lat, bestHospital.lon]],
+          { color: '#c83f35', weight: 4, dashArray: '8 8', opacity: 0.85 }
+        ).addTo(routeLayer);
+      }
 
-        let patientPos = { lat: 37.53, lon: 126.98 };
+      function drawVoronoi() {
+        voronoiLayer.clearLayers();
+        const points = turf.featureCollection(hospitals.map(hospital => turf.point(
+          [hospital.lon, hospital.lat],
+          { hospitalId: hospital.id, hospitalName: hospital.name, color: hospitalColor(hospital) }
+        )));
+        const polygons = turf.voronoi(points, { bbox: [126.3, 37.0, 127.5, 38.0] });
 
-        // 현재 선택된 질환 유형 가져오기 함수
-        function getSelectedDiseaseType() {
-            return document.querySelector('input[name="diseaseType"]:checked').value;
-        }
+        if (!polygons) return;
 
-        function normalizeHospitalName(value) {
-            return String(value || '').replace(/\s/g, '');
-        }
+        polygons.features.forEach((feature, index) => {
+          const fallback = hospitals[index];
+          feature.properties = {
+            hospitalId: feature.properties?.hospitalId || fallback?.id || '',
+            hospitalName: feature.properties?.hospitalName || fallback?.name || '병원',
+            color: feature.properties?.color || (fallback ? hospitalColor(fallback) : '#7c8b95')
+          };
+        });
 
-        function parseScore(...values) {
-            const raw = values.find(value => value !== undefined && value !== null && value !== '');
-            const score = Number.parseFloat(raw);
-            return Number.isFinite(score) ? score : null;
-        }
+        L.geoJSON(polygons, {
+          style: feature => ({
+            color: feature.properties.color,
+            weight: 1.2,
+            fillColor: feature.properties.color,
+            fillOpacity: 0.16
+          }),
+          onEachFeature: (feature, layer) => {
+            layer.bindTooltip(`최근접 병원권 · ${feature.properties.hospitalName}`, { sticky: true });
+          }
+        }).addTo(voronoiLayer);
+      }
 
-        // CSV 파일 업로드 및 데이터 병합 로직 (급성/만성/암 매핑)
-        document.getElementById('csvFileInput').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
+      function updatePatientCoordinates() {
+        document.getElementById('patientCoordinates').textContent = `${patientPos.lat.toFixed(4)}, ${patientPos.lon.toFixed(4)}`;
+      }
 
-            Papa.parse(file, {
-                header: true,
-                dynamicTyping: true,
-                complete: function(results) {
-                    const data = results.data;
-                    let matchedCount = 0;
+      function analyzeHospitals() {
+        const values = getSeverityInputs();
+        const severity = computeSeverity(values);
+        const diseaseType = getSelectedDiseaseType();
 
-                    hospitals.forEach(h => {
-                        // 엑셀의 '병원명' 또는 '병원' 열을 기준으로 매칭
-                        const row = data.find(r => {
-                            const importedName = normalizeHospitalName(r['병원명'] || r['병원']);
-                            return importedName && normalizeHospitalName(h.name).includes(importedName);
-                        });
+        Object.entries(values).forEach(([key, value]) => {
+          document.getElementById(`value${key}`).textContent = value;
+        });
+        document.getElementById('severityValue').textContent = `${severity.toFixed(1)}점`;
+        document.getElementById('severitySummary').textContent = severity.toFixed(1);
+        document.getElementById('selectedDiseaseSummary').textContent = diseaseType;
 
-                        if (row) {
-                            // 엑셀 열 이름이 급성, 만성, 암 혹은 관련 이름이라고 가정하고 추출
-                            const acuteScore = parseScore(row['급성'], row['급성점수']);
-                            const chronicScore = parseScore(row['만성'], row['만성점수']);
-                            const cancerScore = parseScore(row['암'], row['암점수']);
+        latestResults = computeHospitalResults(diseaseType, severity);
+        renderRanking(latestResults, diseaseType, severity);
+        renderMap(latestResults);
+      }
 
-                            if (acuteScore !== null) h.scores['급성'] = acuteScore;
-                            if (chronicScore !== null) h.scores['만성'] = chronicScore;
-                            if (cancerScore !== null) h.scores['암'] = cancerScore;
+      function parseScore(row, keys) {
+        const key = keys.find(candidate => row[candidate] !== undefined && row[candidate] !== null && row[candidate] !== '');
+        if (!key) return { present: false, value: null };
+        const value = Number(row[key]);
+        return { present: true, value };
+      }
 
-                            matchedCount++;
-                        }
-                    });
+      function updateImportReport(issues) {
+        const report = document.getElementById('importReport');
+        const issueList = document.getElementById('importIssues');
+        issueList.replaceChildren();
 
-                    document.getElementById('uploadStatus').innerText = `✅ 데이터 연동 완료 (${matchedCount}개 병원 갱신)`;
-                    document.getElementById('uploadStatus').style.color = '#27ae60';
-                    analyzeHospitals(); // 데이터 갱신 후 즉시 재분석
-                }
+        issues.forEach(issue => {
+          const item = document.createElement('li');
+          item.textContent = issue;
+          issueList.appendChild(item);
+        });
+
+        report.hidden = issues.length === 0;
+        if (issues.length > 0) report.open = true;
+      }
+
+      function importCsv(file) {
+        const uploadStatus = document.getElementById('uploadStatus');
+        uploadStatus.className = 'upload-status';
+        uploadStatus.textContent = 'CSV를 확인하고 있습니다…';
+
+        Papa.parse(file, {
+          header: true,
+          dynamicTyping: true,
+          skipEmptyLines: 'greedy',
+          complete: results => {
+            const issues = results.errors.map(error => `CSV 파싱 오류: ${error.message}`);
+            const hospitalById = new Map(hospitals.map(hospital => [hospital.id.toUpperCase(), hospital]));
+            const hospitalByName = new Map(hospitals.map(hospital => [normalizeHospitalName(hospital.name), hospital]));
+            const updatedIds = new Set();
+            let updatedCount = 0;
+            let skippedCount = 0;
+
+            results.data.forEach((row, index) => {
+              const rowNumber = index + 2;
+              const importedId = String(row['병원ID'] || row['hospital_id'] || '').trim().toUpperCase();
+              const importedName = normalizeHospitalName(row['병원명'] || row['병원']);
+              const hospital = hospitalById.get(importedId) || hospitalByName.get(importedName);
+
+              if (!hospital) {
+                skippedCount += 1;
+                issues.push(`${rowNumber}행: 병원ID 또는 병원명을 찾을 수 없습니다.`);
+                return;
+              }
+
+              if (updatedIds.has(hospital.id)) {
+                skippedCount += 1;
+                issues.push(`${rowNumber}행: ${hospital.name}이(가) 중복 입력되었습니다.`);
+                return;
+              }
+
+              const candidates = {
+                '급성': parseScore(row, ['급성', '급성점수']),
+                '만성': parseScore(row, ['만성', '만성점수']),
+                '암': parseScore(row, ['암', '암점수'])
+              };
+              const presentScores = Object.entries(candidates).filter(([, result]) => result.present);
+
+              if (presentScores.length === 0) {
+                skippedCount += 1;
+                issues.push(`${rowNumber}행: 갱신할 질환 점수가 없습니다.`);
+                return;
+              }
+
+              const invalid = presentScores.find(([, result]) => !Number.isFinite(result.value) || result.value < 0 || result.value > 100);
+              if (invalid) {
+                skippedCount += 1;
+                issues.push(`${rowNumber}행: ${hospital.name}의 ${invalid[0]} 점수는 0~100 숫자여야 합니다.`);
+                return;
+              }
+
+              presentScores.forEach(([disease, result]) => {
+                hospital.scores[disease] = result.value;
+              });
+              updatedIds.add(hospital.id);
+              updatedCount += 1;
             });
+
+            updateImportReport(issues);
+            const hasIssues = issues.length > 0;
+            uploadStatus.className = `upload-status ${hasIssues ? 'warning' : 'success'}`;
+            uploadStatus.textContent = `${updatedCount}개 병원 갱신 · ${skippedCount}개 행 제외${hasIssues ? ` · 확인사항 ${issues.length}건` : ''}`;
+
+            if (updatedCount > 0) {
+              document.getElementById('dataSourceBadge').textContent = '사용자 CSV';
+              document.getElementById('dataSourceText').textContent = `${file.name} · 브라우저 로컬 적용`;
+              analyzeHospitals();
+            }
+          },
+          error: error => {
+            uploadStatus.className = 'upload-status error';
+            uploadStatus.textContent = `CSV를 읽지 못했습니다: ${error.message}`;
+          }
         });
+      }
 
-        function drawVoronoi() {
-            voronoiLayer.clearLayers();
-            const points = turf.featureCollection(hospitals.map(h => turf.point([h.lon, h.lat])));
-            const bbox = [126.3, 37.0, 127.5, 38.0];
-            const voronoiPolygons = turf.voronoi(points, {bbox: bbox});
-
-            L.geoJSON(voronoiPolygons, {
-                style: function () {
-                    return {
-                        color: '#95a5a6', weight: 1,
-                        fillColor: colors[Math.floor(Math.random() * colors.length)],
-                        fillOpacity: 0.25
-                    };
-                }
-            }).addTo(voronoiLayer);
-        }
-
-        function analyzeHospitals() {
-            const valV = parseInt(document.getElementById('sliderV').value);
-            const valG = parseInt(document.getElementById('sliderG').value);
-            const valP = parseInt(document.getElementById('sliderP').value);
-            const valW = parseInt(document.getElementById('sliderW').value);
-
-            document.getElementById('valV').innerText = valV;
-            document.getElementById('valG').innerText = valG;
-            document.getElementById('valP').innerText = valP;
-            document.getElementById('valW').innerText = valW;
-
-            const severity = (valV * 0.40) + (valG * 0.35) + (valP * 0.15) + (valW * 0.10);
-            document.getElementById('severityVal').innerText = severity.toFixed(1) + " 점";
-
-            const diseaseType = getSelectedDiseaseType();
-            const pPoint = turf.point([patientPos.lon, patientPos.lat]);
-            let results = [];
-
-            hospitals.forEach(h => {
-                const hPoint = turf.point([h.lon, h.lat]);
-                const dist = turf.distance(pPoint, hPoint, {units: 'kilometers'});
-                const penalty = dist * ((100 - severity) / 50.0);
-
-                // 선택된 질환(급성/만성/암)에 해당하는 병원의 상대평가 점수를 Base Score로 사용
-                const currentBaseScore = h.scores[diseaseType];
-                let dynamicScore = currentBaseScore - penalty;
-
-                results.push({ ...h, distance: dist, score: dynamicScore, appliedBaseScore: currentBaseScore });
-            });
-
-            results.sort((a, b) => b.score - a.score);
-            updateUI(results, diseaseType);
-        }
-
-        function updateUI(results, diseaseType) {
-            const listContainer = document.getElementById('rankingList');
-            listContainer.innerHTML = '';
-
-            results.slice(0, 5).forEach((h, index) => {
-                const rank = index + 1;
-                const card = document.createElement('div');
-                card.className = `hospital-card ${rank === 1 ? 'rank-1' : ''}`;
-
-                card.innerHTML = `
-                    <div class="h-header">
-                        <div><span class="h-name">${h.name}</span><span class="h-region">[${h.region}]</span></div>
-                        <span class="h-rank">${rank}위</span>
-                    </div>
-                    <div class="h-score">${h.score.toFixed(1)} 점</div>
-                    <div class="h-stat">[${diseaseType}] 평가 ${h.appliedBaseScore.toFixed(1)}점 | 환자까지 직선거리 ${h.distance.toFixed(1)}km</div>
-                `;
-                listContainer.appendChild(card);
-            });
-
-            hospitalLayer.clearLayers();
-            hospitals.forEach(h => {
-                const isBest = h.id === results[0].id;
-                const markerHtml = `<div style="background-color: ${isBest ? '#e74c3c' : '#3498db'}; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px rgba(0,0,0,0.5);"></div>`;
-                const icon = L.divIcon({ html: markerHtml, className: '', iconSize: [18, 18], iconAnchor: [9, 9] });
-
-                L.marker([h.lat, h.lon], { icon: icon })
-                 .bindTooltip(h.name, { permanent: isBest, direction: 'right', className: 'h-tooltip' })
-                 .addTo(hospitalLayer);
-            });
-
-            if (patientMarker) map.removeLayer(patientMarker);
-            const pIcon = L.divIcon({ html: `<div style="font-size: 24px; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">⭐</div>`, className: '', iconSize: [24, 24], iconAnchor: [12, 12] });
-            patientMarker = L.marker([patientPos.lat, patientPos.lon], { icon: pIcon, zIndexOffset: 1000 }).addTo(map);
-
-            if (bestRouteLine) map.removeLayer(bestRouteLine);
-            bestRouteLine = L.polyline([[patientPos.lat, patientPos.lon], [results[0].lat, results[0].lon]], {
-                color: '#e74c3c', weight: 4, dashArray: '8, 8', opacity: 0.8
-            }).addTo(map);
-        }
-
-        map.on('click', function(e) {
-            patientPos.lat = e.latlng.lat;
-            patientPos.lon = e.latlng.lng;
-            analyzeHospitals();
-        });
-
-        // 슬라이더 및 질환 유형 라디오 버튼 이벤트 리스너
-        ['sliderV', 'sliderG', 'sliderP', 'sliderW'].forEach(id => {
-            document.getElementById(id).addEventListener('input', analyzeHospitals);
-        });
-
-        document.querySelectorAll('input[name="diseaseType"]').forEach(radio => {
-            radio.addEventListener('change', analyzeHospitals);
-        });
-
-        document.getElementById('toggleVoronoi').addEventListener('change', function(e) {
-            e.target.checked ? map.addLayer(voronoiLayer) : map.removeLayer(voronoiLayer);
-        });
-        document.getElementById('toggleHospitals').addEventListener('change', function(e) {
-            e.target.checked ? map.addLayer(hospitalLayer) : map.removeLayer(hospitalLayer);
-        });
-
-        const style = document.createElement('style');
-        style.innerHTML = `.h-tooltip { background: rgba(255,255,255,0.85); border: none; font-weight: bold; color: #2c3e50; padding: 2px 6px; }`;
-        document.head.appendChild(style);
-
-        drawVoronoi();
+      map.on('click', event => {
+        patientPos = { lat: event.latlng.lat, lon: event.latlng.lng };
+        updatePatientCoordinates();
         analyzeHospitals();
-    </script>
+      });
+
+      document.getElementById('rankingList').addEventListener('click', event => {
+        const button = event.target.closest('[data-hospital-id]');
+        if (!button) return;
+        const hospital = hospitals.find(candidate => candidate.id === button.dataset.hospitalId);
+        if (hospital) map.setView([hospital.lat, hospital.lon], 13, { animate: true });
+      });
+
+      Object.keys(MODEL.weights).forEach(key => {
+        document.getElementById(`slider${key}`).addEventListener('input', analyzeHospitals);
+      });
+
+      document.querySelectorAll('input[name="diseaseType"]').forEach(input => {
+        input.addEventListener('change', analyzeHospitals);
+      });
+
+      document.getElementById('resetSeverity').addEventListener('click', () => {
+        Object.keys(MODEL.weights).forEach(key => {
+          document.getElementById(`slider${key}`).value = 50;
+        });
+        analyzeHospitals();
+      });
+
+      document.getElementById('csvFileInput').addEventListener('change', event => {
+        const file = event.target.files[0];
+        if (file) importCsv(file);
+      });
+
+      document.getElementById('toggleVoronoi').addEventListener('change', event => {
+        event.target.checked ? map.addLayer(voronoiLayer) : map.removeLayer(voronoiLayer);
+      });
+
+      document.getElementById('toggleHospitals').addEventListener('change', event => {
+        event.target.checked ? map.addLayer(hospitalLayer) : map.removeLayer(hospitalLayer);
+      });
+
+      document.getElementById('toggleRoute').addEventListener('change', event => {
+        event.target.checked ? map.addLayer(routeLayer) : map.removeLayer(routeLayer);
+      });
+
+      document.getElementById('useMyLocation').addEventListener('click', () => {
+        const status = document.getElementById('locationStatus');
+        if (!navigator.geolocation) {
+          status.className = 'upload-status error';
+          status.textContent = '이 브라우저는 현재 위치 기능을 지원하지 않습니다.';
+          return;
+        }
+
+        status.className = 'upload-status';
+        status.textContent = '현재 위치를 확인하고 있습니다…';
+        navigator.geolocation.getCurrentPosition(
+          position => {
+            patientPos = { lat: position.coords.latitude, lon: position.coords.longitude };
+            updatePatientCoordinates();
+            analyzeHospitals();
+            map.setView([patientPos.lat, patientPos.lon], 12);
+            status.className = 'upload-status success';
+            status.textContent = '현재 위치를 환자 위치로 적용했습니다.';
+          },
+          error => {
+            status.className = 'upload-status error';
+            status.textContent = `위치를 가져오지 못했습니다: ${error.message}`;
+          },
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 }
+        );
+      });
+
+      window.addEventListener('resize', () => map.invalidateSize());
+
+      drawVoronoi();
+      updatePatientCoordinates();
+      analyzeHospitals();
+    })();
+  </script>
 </body>
 </html>
